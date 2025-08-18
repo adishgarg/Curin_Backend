@@ -3,38 +3,86 @@ const { body, validationResult } = require('express-validator');
 
 // Validation middleware
 const validateTaskCreation = [
-  body('userTimestamp')
-    .notEmpty()
-    .withMessage('User timestamp is required')
-    .isISO8601()
-    .withMessage('User timestamp must be in valid ISO 8601 format'),
-
-  body('partnerOrganization')
+  body('taskName')
     .trim()
     .notEmpty()
-    .withMessage('Partner organization is required'),
+    .withMessage('Task name is required'),
 
-  body('industriesInvolved')
+  body('partnerOrganizations')
     .isArray({ min: 1 })
-    .withMessage('At least one industry must be specified'),
+    .withMessage('At least one partner organization must be specified')
+    .custom((organizations) => {
+      for (const org of organizations) {
+        if (!org.name || typeof org.name !== 'string' || org.name.trim().length === 0) {
+          throw new Error('Each partner organization must have a name');
+        }
+        if (org.objID && typeof org.objID !== 'string') {
+          throw new Error('Partner organization objID must be a string if provided');
+        }
+      }
+      return true;
+    }),
 
-  body('workDone')
+  body('employeesAssigned')
+    .isArray({ min: 1 })
+    .withMessage('At least one employee must be assigned')
+    .custom((employees) => {
+      for (const emp of employees) {
+        if (!emp.name || typeof emp.name !== 'string' || emp.name.trim().length === 0) {
+          throw new Error('Each employee must have a name');
+        }
+        if (emp.objID && typeof emp.objID !== 'string') {
+          throw new Error('Employee objID must be a string if provided');
+        }
+      }
+      return true;
+    }),
+
+  body('startDate')
+    .notEmpty()
+    .withMessage('Start date is required')
+    .isISO8601()
+    .withMessage('Start date must be in valid ISO 8601 format'),
+
+  body('endDate')
+    .notEmpty()
+    .withMessage('End date is required')
+    .isISO8601()
+    .withMessage('End date must be in valid ISO 8601 format')
+    .custom((endDate, { req }) => {
+      const startDate = new Date(req.body.startDate);
+      const end = new Date(endDate);
+      if (end <= startDate) {
+        throw new Error('End date must be after start date');
+      }
+      return true;
+    }),
+
+  body('description')
     .trim()
     .notEmpty()
-    .withMessage('Work done description is required'),
+    .withMessage('Description is required')
+    .custom((value) => {
+      const wordCount = value.trim().split(/\s+/).length;
+      if (wordCount > 50) {
+        throw new Error('Description cannot exceed 50 words');
+      }
+      return true;
+    }),
 
-  body('summary')
+  body('remarks')
     .optional()
     .trim(),
 
   body('status')
     .optional()
-    .isIn(['active', 'completed', 'on-hold', 'cancelled'])
-    .withMessage('Status must be one of: active, completed, on-hold, cancelled'),
+    .isIn(['active', 'completed', 'cancelled'])
+    .withMessage('Status must be one of: active, completed, cancelled'),
 
   body('createdBy')
-    .optional()
     .trim()
+    .notEmpty()
+    .withMessage('Created by is required')
 ];
 
 // Create task endpoint
@@ -55,22 +103,38 @@ const createTask = async (req, res) => {
     }
 
     const {
-      userTimestamp,
-      partnerOrganization,
-      industriesInvolved,
-      workDone,
-      summary,
+      taskName,
+      partnerOrganizations,
+      employeesAssigned,
+      startDate,
+      endDate,
+      description,
+      remarks,
       status = 'active',
-      createdBy = 'system'
+      createdBy
     } = req.body;
+
+    // Process partner organizations
+    const processedPartnerOrgs = partnerOrganizations.map(org => ({
+      id: org.objID || null, // Map objID to id field in database
+      name: org.name.trim()
+    }));
+
+    // Process employees
+    const processedEmployees = employeesAssigned.map(emp => ({
+      id: emp.objID || null, // Map objID to id field in database
+      name: emp.name.trim()
+    }));
 
     // Create new task
     const newTask = new Task({
-      userTimestamp: new Date(userTimestamp),
-      partnerOrganization: partnerOrganization.trim(),
-      industriesInvolved: industriesInvolved.map(industry => industry.trim()),
-      workDone: workDone.trim(),
-      summary: summary ? summary.trim() : undefined,
+      taskName: taskName.trim(),
+      partnerOrganizations: processedPartnerOrgs,
+      employeesAssigned: processedEmployees,
+      startDate: new Date(startDate),
+      endDate: new Date(endDate),
+      description: description.trim(),
+      remarks: remarks ? remarks.trim() : undefined,
       status,
       createdBy: createdBy.trim()
     });
@@ -84,18 +148,21 @@ const createTask = async (req, res) => {
       message: 'Task created successfully',
       data: {
         task: {
-          id: savedTask._id,
-          userTimestamp: savedTask.userTimestamp,
-          automaticTimestamp: savedTask.automaticTimestamp,
-          partnerOrganization: savedTask.partnerOrganization,
-          industriesInvolved: savedTask.industriesInvolved,
-          workDone: savedTask.workDone,
-          workDoneWordCount: savedTask.workDoneWordCount,
-          summary: savedTask.summary,
+          _id: savedTask._id,
+          taskName: savedTask.taskName,
+          partnerOrganizations: savedTask.partnerOrganizations,
+          employeesAssigned: savedTask.employeesAssigned,
+          startDate: savedTask.startDate,
+          endDate: savedTask.endDate,
+          timestamp: savedTask.timestamp,
+          description: savedTask.description,
+          descriptionWordCount: savedTask.descriptionWordCount,
+          remarks: savedTask.remarks,
           status: savedTask.status,
           createdBy: savedTask.createdBy,
           createdAt: savedTask.createdAt,
-          updatedAt: savedTask.updatedAt
+          updatedAt: savedTask.updatedAt,
+          auditLogs: savedTask.auditLogs
         }
       }
     });

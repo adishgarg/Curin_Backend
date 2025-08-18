@@ -42,9 +42,14 @@ app.use(express.urlencoded({ extended: true }));
 
 // Import routes
 const taskRoutes = require('./Task/routes.js');
-
+const employeeRoutes = require('./Employee/routes.js');
+const organizationRoutes = require('./Organizatoin/routes.js');
+const industriesRoutes = require('./Industries/routes.js');
 // API Routes
 app.use('/api/tasks', taskRoutes);
+app.use('/api/employees', employeeRoutes);
+app.use('/api/organizations', organizationRoutes);
+app.use('/api/industries', industriesRoutes);
 
 // Basic route
 app.get('/', (req, res) => {
