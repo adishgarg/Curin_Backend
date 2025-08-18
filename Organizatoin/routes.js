@@ -15,7 +15,7 @@ router.get('/', async (req, res) => {
       data: {
         organizations: organizations.map(org => ({
           _id: org._id,
-          name: org.name,
+          name: org.OrganizationName,
           createdAt: org.createdAt,
           updatedAt: org.updatedAt
         }))

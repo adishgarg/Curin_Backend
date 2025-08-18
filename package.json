@@ -6,6 +6,7 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "seed:employees": "node seeders/employeeSeeder.js",
+    "seed:industries": "node seeders/IndustrySeeder.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",

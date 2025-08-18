@@ -48,7 +48,7 @@ const industriesRoutes = require('./Industries/routes.js');
 // API Routes
 app.use('/api/tasks', taskRoutes);
 app.use('/api/employees', employeeRoutes);
-app.use('/api/organizations', organizationRoutes);
+app.use('/api/org', organizationRoutes);
 app.use('/api/industries', industriesRoutes);
 
 // Basic route
