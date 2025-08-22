@@ -1,12 +1,7 @@
 const mongoose = require('mongoose');
 
 const OrganizationSchema = new mongoose.Schema({
-
-    OrganizationName: {
-        type: String,
-        required: true
-    },
-    Location:{
+    name: {
         type: String,
         required: true
     },

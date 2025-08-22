@@ -15,7 +15,11 @@ const app = express();
 connectDB();
 
 // Security middleware
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+  })
+);
 
 // Rate limiting
 const limiter = rateLimit({
@@ -24,9 +28,32 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// CORS
-app.use(cors());
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { success: false, message: 'Too many login attempts, please try again later.' },
+});
 
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+  // Enforce HTTPS in production
+  app.use((req, res, next) => {
+    const proto = req.headers['x-forwarded-proto'];
+    if (req.secure || proto === 'https') return next();
+    return res.redirect(`https://${req.headers.host}${req.url}`);
+  });
+  // Enable HSTS
+  app.use(helmet.hsts({ maxAge: 31536000, includeSubDomains: true }));
+}
+
+// CORS
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
+  : ['http://localhost:3000'];
+
+app.use(
+  cors()
+);
 // Compression
 app.use(compression());
 
@@ -41,25 +68,13 @@ app.use(express.urlencoded({ extended: true }));
 
 
 // Import routes
-const taskRoutes = require('./Task/routes.js');
-const employeeRoutes = require('./Employee/routes.js');
-const organizationRoutes = require('./Organizatoin/routes.js');
-const industriesRoutes = require('./Industries/routes.js');
+const employeeRoutes = require('./Controllers/employee.js');
+const loginRoutes = require('./Controllers/login.js');
+const organizationRoutes = require('./Controllers/organizaiton.js');
 // API Routes
-app.use('/api/tasks', taskRoutes);
 app.use('/api/employees', employeeRoutes);
-app.use('/api/org', organizationRoutes);
-app.use('/api/industries', industriesRoutes);
-
-// Basic route
-app.get('/', (req, res) => {
-  res.json({ 
-    message: 'Curin API Server is running!',
-    status: 'success',
-    timestamp: new Date().toISOString()
-  });
-});
-
+app.use('/api/auth', loginRoutes);
+app.use('/api/organizations', organizationRoutes);
 
 const PORT = process.env.PORT || 3000;
 
