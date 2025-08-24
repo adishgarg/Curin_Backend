@@ -73,12 +73,14 @@ const loginRoutes = require('./Controllers/login.js');
 const organizationRoutes = require('./Controllers/organizaiton.js');
 const taskRoutes = require('./Controllers/Task.js');
 const industriesRoutes = require('./Controllers/industries.js');
+const fileRoutes = require('./Controllers/files.js');
 // API Routes
 app.use('/api/employees', employeeRoutes);
 app.use('/api/auth', loginRoutes);
 app.use('/api/organizations', organizationRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/industries', industriesRoutes);
+app.use('/api/files', fileRoutes);
 
 const PORT = process.env.PORT || 3000;
 

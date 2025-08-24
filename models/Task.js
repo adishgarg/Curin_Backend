@@ -6,12 +6,6 @@ const taskSchema = new mongoose.Schema({
     type: String,
     trim: true,
     required: true,
-    validate: {
-      validator: function(value) {
-        return value && value.length >= 10 && value.length <= 500;
-      },
-      message: 'Description must be between 10 and 500 characters'
-    }
   },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee', required: true },
   assignedTo: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Employee', required: true }],
@@ -23,30 +17,32 @@ const taskSchema = new mongoose.Schema({
   },
   startDate: { type: Date, required: true },
   endDate: { type: Date, required: true },
-  files: [{ type: String }],
-  partnerOrganization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true },
-  industry: { type: mongoose.Schema.Types.ObjectId, ref: 'Industry', required: true },
+  files: [{
+    filename: { type: String, required: true },
+    originalName: { type: String, required: true },
+    mimetype: { type: String },
+    size: { type: Number },
+    url: { type: String, required: true },
+    uploadedAt: { type: Date, default: Date.now }
+  }],
+  partnerOrganizations: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true },
+  industriesInvolved: { type: mongoose.Schema.Types.ObjectId, ref: 'Industry', required: true },
   remarks: [
     {
       text: { type: String, trim: true, required: true },
       createdAt: { type: Date, default: Date.now },
-      files: { type: String, trim: true }
-    }
-  ],
-  auditLogs: [
-    {
-      changedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee', required: true },
-      changes: [
-        {
-          field: { type: String, required: true },
-          oldValue: { type: mongoose.Schema.Types.Mixed },
-          newValue: { type: mongoose.Schema.Types.Mixed }
-        }
-      ],
-      changedAt: { type: Date, default: Date.now },
-      remarks: { type: String, trim: true }
+      files: [{
+        filename: { type: String },
+        originalName: { type: String },
+        mimetype: { type: String },
+        size: { type: Number },
+        url: { type: String },
+        uploadedAt: { type: Date, default: Date.now }
+      }]
     }
   ]
+}, {
+  timestamps: true 
 })
 
 module.exports = mongoose.model('Task', taskSchema)

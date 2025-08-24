@@ -19,6 +19,9 @@ const AuditLogSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
+// Index for performance
 AuditLogSchema.index({ resourceId: 1, createdAt: -1 });
+AuditLogSchema.index({ resourceType: 1, createdAt: -1 });
+AuditLogSchema.index({ changedBy: 1, createdAt: -1 });
 
 module.exports = mongoose.model('AuditLog', AuditLogSchema);
