@@ -6,6 +6,104 @@ const auth = require('../middleware/auth');
 // Apply authentication to all file routes
 router.use(auth());
 
+// List files in Google Drive (for debugging/organization)
+router.get('/list-drive-files', async (req, res) => {
+  try {
+    const response = await driveService.drive.files.list({
+      q: "trashed=false",
+      fields: 'files(id,name,mimeType,size,createdTime,parents,webViewLink)',
+      orderBy: 'createdTime desc',
+      pageSize: 50
+    });
+
+    const files = response.data.files;
+    const organized = {
+      curin_files: files.filter(f => f.name.includes('Curin') || f.name.includes('timestamp')),
+      folders: files.filter(f => f.mimeType === 'application/vnd.google-apps.folder'),
+      other_files: files.filter(f => f.mimeType !== 'application/vnd.google-apps.folder' && 
+                                   !f.name.includes('Curin') && !f.name.includes('timestamp'))
+    };
+
+    res.json({
+      success: true,
+      message: 'Drive files retrieved',
+      data: organized,
+      total: files.length
+    });
+  } catch (error) {
+    console.error('Error listing drive files:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to list drive files',
+      error: error.message
+    });
+  }
+});
+
+// Organize existing files into folders
+router.post('/organize-drive', async (req, res) => {
+  try {
+    // Find files that look like they're from our app
+    const response = await driveService.drive.files.list({
+      q: "trashed=false and (name contains 'Screenshot' or name contains 'timestamp' or name contains '.png' or name contains '.jpg' or name contains '.pdf')",
+      fields: 'files(id,name,mimeType,parents)',
+    });
+
+    const filesToOrganize = response.data.files.filter(f => 
+      f.mimeType !== 'application/vnd.google-apps.folder' && 
+      (!f.parents || f.parents.length === 0 || f.parents.includes('root'))
+    );
+
+    if (filesToOrganize.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No files found to organize',
+        moved: 0
+      });
+    }
+
+    // Create folders if they don't exist
+    let mainFolder = await driveService.findFolder('Curin Files');
+    if (!mainFolder) {
+      mainFolder = await driveService.createFolder('Curin Files');
+    }
+
+    let taskFolder = await driveService.findFolder('Task Files', mainFolder.id);
+    if (!taskFolder) {
+      taskFolder = await driveService.createFolder('Task Files', mainFolder.id);
+    }
+
+    // Move files to the task folder
+    let movedCount = 0;
+    for (const file of filesToOrganize) {
+      try {
+        await driveService.drive.files.update({
+          fileId: file.id,
+          addParents: taskFolder.id,
+          removeParents: file.parents ? file.parents.join(',') : 'root'
+        });
+        movedCount++;
+      } catch (moveError) {
+        console.error(`Failed to move file ${file.name}:`, moveError.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Organized ${movedCount} files into Curin Files/Task Files`,
+      moved: movedCount,
+      total_found: filesToOrganize.length
+    });
+  } catch (error) {
+    console.error('Error organizing drive:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to organize drive files',
+      error: error.message
+    });
+  }
+});
+
 // Upload single file to Google Drive
 router.post('/upload', single('file'), async (req, res) => {
   try {

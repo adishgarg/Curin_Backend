@@ -122,6 +122,47 @@ class GoogleDriveService {
     }
   }
 
+  // Folder management methods
+  async findFolder(folderName, parentId = null) {
+    try {
+      let query = `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+      if (parentId) {
+        query += ` and '${parentId}' in parents`;
+      }
+
+      const response = await this.drive.files.list({
+        q: query,
+        fields: 'files(id,name)',
+      });
+
+      return response.data.files.length > 0 ? response.data.files[0] : null;
+    } catch (error) {
+      console.error('Error finding folder:', error);
+      return null;
+    }
+  }
+
+  async createFolder(folderName, parentId = null) {
+    try {
+      const fileMetadata = {
+        name: folderName,
+        mimeType: 'application/vnd.google-apps.folder',
+        parents: parentId ? [parentId] : undefined,
+      };
+
+      const response = await this.drive.files.create({
+        requestBody: fileMetadata,
+        fields: 'id,name',
+      });
+
+      console.log(`Created folder: ${folderName} (ID: ${response.data.id})`);
+      return response.data;
+    } catch (error) {
+      console.error('Error creating folder:', error);
+      throw error;
+    }
+  }
+
   async createFolder(folderName, parentFolderId = null) {
     try {
       const fileMetadata = {
@@ -192,13 +233,33 @@ const uploadToGoogleDrive = async (file, folderType = 'tasks') => {
     const randomSuffix = Math.round(Math.random() * 1E9);
     const fileName = `${timestamp}-${randomSuffix}-${file.originalname}`;
     
-    // Get or create folder ID based on type
-    const folderIds = {
-      tasks: process.env.GOOGLE_DRIVE_TASKS_FOLDER_ID,
-      remarks: process.env.GOOGLE_DRIVE_REMARKS_FOLDER_ID
-    };
+    // Create or get folder for organization
+    const driveService = new GoogleDriveService();
+    let parentFolderId = null;
     
-    const parentFolderId = folderIds[folderType];
+    // Create/find the main "Curin Files" folder
+    const mainFolderName = 'Curin Files';
+    const subFolderName = folderType === 'tasks' ? 'Task Files' : 'Remark Files';
+    
+    try {
+      // Find or create main folder
+      let mainFolder = await driveService.findFolder(mainFolderName);
+      if (!mainFolder) {
+        mainFolder = await driveService.createFolder(mainFolderName);
+        console.log(`Created main folder: ${mainFolderName}`);
+      }
+      
+      // Find or create subfolder
+      let subFolder = await driveService.findFolder(subFolderName, mainFolder.id);
+      if (!subFolder) {
+        subFolder = await driveService.createFolder(subFolderName, mainFolder.id);
+        console.log(`Created subfolder: ${subFolderName}`);
+      }
+      
+      parentFolderId = subFolder.id;
+    } catch (folderError) {
+      console.log('Could not create/find folders, uploading to root:', folderError.message);
+    }
     
     // Upload to Google Drive
     const driveFile = await driveService.uploadFile(
