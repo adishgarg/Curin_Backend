@@ -18,11 +18,13 @@ const taskSchema = new mongoose.Schema({
   startDate: { type: Date, required: true },
   endDate: { type: Date, required: true },
   files: [{
+    fileId: { type: String, required: true }, // Google Drive file ID
     filename: { type: String, required: true },
     originalName: { type: String, required: true },
     mimetype: { type: String },
     size: { type: Number },
-    url: { type: String, required: true },
+    url: { type: String, required: true }, // Google Drive view URL
+    downloadUrl: { type: String }, // Google Drive download URL
     uploadedAt: { type: Date, default: Date.now }
   }],
   partnerOrganizations: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true },
@@ -32,11 +34,13 @@ const taskSchema = new mongoose.Schema({
       text: { type: String, trim: true, required: true },
       createdAt: { type: Date, default: Date.now },
       files: [{
+        fileId: { type: String }, // Google Drive file ID
         filename: { type: String },
         originalName: { type: String },
         mimetype: { type: String },
         size: { type: Number },
-        url: { type: String },
+        url: { type: String }, // Google Drive view URL
+        downloadUrl: { type: String }, // Google Drive download URL
         uploadedAt: { type: Date, default: Date.now }
       }]
     }

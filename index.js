@@ -46,13 +46,30 @@ if (process.env.NODE_ENV === 'production') {
   app.use(helmet.hsts({ maxAge: 31536000, includeSubDomains: true }));
 }
 
-// CORS
+// CORS Configuration
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
-  : ['http://localhost:3000'];
+  : ['http://localhost:3000', 'http://localhost:3001']; // Frontend ports
 
 app.use(
-  cors()
+  cors({
+    origin: function (origin, callback) {
+      // Allow requests with no origin (mobile apps, Postman, etc.)
+      if (!origin) return callback(null, true);
+      
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        console.log(`CORS blocked origin: ${origin}`);
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true, // Allow cookies and credentials
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    exposedHeaders: ['X-Total-Count'], // Headers accessible to frontend
+    maxAge: 86400 // Cache preflight requests for 24 hours
+  })
 );
 // Compression
 app.use(compression());
@@ -74,6 +91,8 @@ const organizationRoutes = require('./Controllers/organizaiton.js');
 const taskRoutes = require('./Controllers/Task.js');
 const industriesRoutes = require('./Controllers/industries.js');
 const fileRoutes = require('./Controllers/files.js');
+const authRoutes = require('./Controllers/auth.js');
+
 // API Routes
 app.use('/api/employees', employeeRoutes);
 app.use('/api/auth', loginRoutes);
@@ -81,6 +100,7 @@ app.use('/api/organizations', organizationRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/industries', industriesRoutes);
 app.use('/api/files', fileRoutes);
+app.use('/auth', authRoutes);
 
 const PORT = process.env.PORT || 3000;
 

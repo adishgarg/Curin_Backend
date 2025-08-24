@@ -3,13 +3,17 @@ const router = express.Router();
 const Task = require('../models/Task');
 const auth = require('../middleware/auth');
 const audit = require('../middleware/audit');
+const { multiple, uploadToGoogleDrive } = require('../middleware/upload');
 const mongoose = require('mongoose');
 
 router.use(auth());
 router.use(audit());
 
 // Helper function to validate ObjectId
-const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
+const isValidObjectId = (id) => {
+    if (!id || typeof id !== 'string') return false;
+    return mongoose.Types.ObjectId.isValid(id) && id.length === 24;
+};
 
 router.get('/getAll', async (req, res) => {
      try{
@@ -68,7 +72,29 @@ router.get('/getAll', async (req, res) => {
      }
  })
 
-router.post('/create', async (req, res) => {
+router.post('/create', multiple('files', 5), async (req, res) => {
+     // Debug the raw request body
+     console.log('Raw req.body:', req.body);
+     console.log('req.body type:', typeof req.body);
+     console.log('req.files:', req.files);
+     
+     // Handle JSON data sent as form fields (when files are included)
+     let parsedData = {};
+     
+     // Try to parse if data is sent as a JSON string in a field called 'data'
+     if (req.body.data && typeof req.body.data === 'string') {
+         try {
+             parsedData = JSON.parse(req.body.data);
+         } catch (e) {
+             console.log('Failed to parse JSON data:', e.message);
+         }
+     } else {
+         // Use the body directly if it's already an object
+         parsedData = req.body;
+     }
+     
+     console.log('Parsed data:', parsedData);
+     
      // Map frontend request to backend schema
      const {
          taskName,
@@ -78,10 +104,9 @@ router.post('/create', async (req, res) => {
          status,
          startDate,
          endDate,
-         files,
          partnerOrganizations,
          industriesInvolved
-     } = req.body;
+     } = parsedData;
 
      // Extract IDs from frontend objects
      const title = taskName;
@@ -100,6 +125,18 @@ router.post('/create', async (req, res) => {
      };
      const mappedStatus = statusMap[status?.toLowerCase()] || 'In Progress';
 
+     // Debug logging
+     console.log('Validation debug:', {
+         title,
+         description,
+         createdById,
+         assignedToIds,
+         partnerOrgId,
+         industryId,
+         startDate,
+         endDate
+     });
+
      // Input validation
      const errors = [];
      
@@ -114,6 +151,7 @@ router.post('/create', async (req, res) => {
      if (!createdById) {
          errors.push('Created by employee is required');
      } else if (!isValidObjectId(createdById)) {
+         console.log('Invalid createdById:', createdById);
          errors.push('Created by employee ID must be valid');
      }
      
@@ -122,6 +160,7 @@ router.post('/create', async (req, res) => {
      } else {
          const invalidIds = assignedToIds.filter(id => !isValidObjectId(id));
          if (invalidIds.length > 0) {
+             console.log('Invalid assignedToIds:', invalidIds);
              errors.push('All assigned employee IDs must be valid');
          }
      }
@@ -129,12 +168,14 @@ router.post('/create', async (req, res) => {
      if (!partnerOrgId) {
          errors.push('Partner organization is required');
      } else if (!isValidObjectId(partnerOrgId)) {
+         console.log('Invalid partnerOrgId:', partnerOrgId);
          errors.push('Partner organization ID must be valid');
      }
      
      if (!industryId) {
          errors.push('Industry is required');
      } else if (!isValidObjectId(industryId)) {
+         console.log('Invalid industryId:', industryId);
          errors.push('Industry ID must be valid');
      }
 
@@ -157,6 +198,14 @@ router.post('/create', async (req, res) => {
      }
 
      try {
+         // Handle file uploads to Google Drive
+         let uploadedFiles = [];
+         if (req.files && req.files.length > 0) {
+             console.log(`Uploading ${req.files.length} files to Google Drive...`);
+             const uploadPromises = req.files.map(file => uploadToGoogleDrive(file, 'tasks'));
+             uploadedFiles = await Promise.all(uploadPromises);
+         }
+
          const newTask = new Task({
              title,
              description,
@@ -165,7 +214,7 @@ router.post('/create', async (req, res) => {
              status: mappedStatus,
              startDate: new Date(startDate),
              endDate: new Date(endDate),
-             files: files || [],
+             files: uploadedFiles,
              partnerOrganizations: partnerOrgId,
              industriesInvolved: industryId
          });
@@ -268,7 +317,7 @@ router.get('/get/:id', async (req, res) => {
 });
 
 // Update a task by ID
-router.put('/update/:id', async (req, res) => {
+router.put('/update/:id', multiple('files', 5), async (req, res) => {
     if (!isValidObjectId(req.params.id)) {
         return res.status(400).json({ success: false, message: 'Invalid task ID' });
     }
@@ -324,7 +373,16 @@ router.put('/update/:id', async (req, res) => {
         }
         if (startDate !== undefined) updates.startDate = new Date(startDate);
         if (endDate !== undefined) updates.endDate = new Date(endDate);
-        if (files !== undefined) updates.files = files;
+        
+        // Handle file uploads to Google Drive
+        if (req.files && req.files.length > 0) {
+            console.log(`Uploading ${req.files.length} new files to Google Drive...`);
+            const uploadPromises = req.files.map(file => uploadToGoogleDrive(file, 'tasks'));
+            const newUploadedFiles = await Promise.all(uploadPromises);
+            
+            // Append new files to existing files
+            updates.files = [...(task.files || []), ...newUploadedFiles];
+        }
         if (partnerOrganizations !== undefined) {
             const partnerOrgId = partnerOrganizations?.[0]?.id;
             if (partnerOrgId && !isValidObjectId(partnerOrgId)) {
@@ -373,11 +431,18 @@ router.put('/update/:id', async (req, res) => {
 
         // Handle remarks - add new remark if provided
         if (newRemarkText && newRemarkText.trim()) {
-            task.remarks.push({
+            // Handle remark file uploads if any files are marked for remarks
+            let remarkFiles = [];
+            // Note: In a more sophisticated implementation, you could have separate file fields
+            // for now, we'll use a flag or convention to identify remark files
+            
+            const newRemark = {
                 text: newRemarkText.trim(),
                 createdAt: new Date(),
-                files: req.body.remarkFiles || ''
-            });
+                files: remarkFiles
+            };
+            
+            task.remarks.push(newRemark);
             changes.push({
                 field: 'remarks',
                 oldValue: null,
@@ -439,6 +504,74 @@ router.delete('/delete/:id', async (req, res) => {
         res.status(200).json({ success: true, message: 'Task deleted successfully' });
     } catch (error) {
         console.error('Error deleting task:', error);
+        res.status(500).json({ success: false, message: 'Server Error' });
+    }
+});
+
+// Add remark with files to a task
+router.post('/:id/remarks', multiple('files', 3), async (req, res) => {
+    if (!isValidObjectId(req.params.id)) {
+        return res.status(400).json({ success: false, message: 'Invalid task ID' });
+    }
+    
+    try {
+        const task = await Task.findById(req.params.id);
+        if (!task) {
+            return res.status(404).json({ success: false, message: 'Task not found' });
+        }
+
+        const { text } = req.body;
+        
+        if (!text || text.trim().length === 0) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Remark text is required' 
+            });
+        }
+
+        // Handle file uploads for the remark
+        let remarkFiles = [];
+        if (req.files && req.files.length > 0) {
+            console.log(`Uploading ${req.files.length} remark files to Google Drive...`);
+            const uploadPromises = req.files.map(file => uploadToGoogleDrive(file, 'remarks'));
+            remarkFiles = await Promise.all(uploadPromises);
+        }
+
+        // Add the new remark
+        const newRemark = {
+            text: text.trim(),
+            createdAt: new Date(),
+            files: remarkFiles
+        };
+        
+        task.remarks.push(newRemark);
+        const updatedTask = await task.save();
+
+        // Audit the remark addition
+        if (req.audit) {
+            await req.audit({
+                action: 'update',
+                resourceType: 'Task',
+                resourceId: updatedTask._id,
+                changes: [{
+                    field: 'remarks',
+                    oldValue: null,
+                    newValue: `Added remark: ${text.trim()}`
+                }],
+                remarks: `Remark added with ${remarkFiles.length} files`
+            });
+        }
+
+        res.status(200).json({ 
+            success: true, 
+            message: 'Remark added successfully',
+            data: {
+                remark: newRemark,
+                task: updatedTask
+            }
+        });
+    } catch (error) {
+        console.error('Error adding remark:', error);
         res.status(500).json({ success: false, message: 'Server Error' });
     }
 });
