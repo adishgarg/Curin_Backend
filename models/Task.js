@@ -1,7 +1,6 @@
 const mongoose = require('mongoose')
 
 const taskSchema = new mongoose.Schema({
-  driveFolderId: { type: String }, // Google Drive folder ID for this task
   title: { type: String, required: true, trim: true },
   description: {
     type: String,

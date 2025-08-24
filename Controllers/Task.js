@@ -198,17 +198,11 @@ router.post('/create', multiple('files', 5), async (req, res) => {
      }
 
      try {
-         // Create a folder for this task in Google Drive
-         const driveService = require('../middleware/upload').driveService;
-         const folderName = `Task - ${title}`;
-         let taskFolder = await driveService.createFolder(folderName);
-         const taskFolderId = taskFolder.id;
-
-         // Handle file uploads to Google Drive (store in task folder)
+         // Handle file uploads to Google Drive
          let uploadedFiles = [];
          if (req.files && req.files.length > 0) {
-             console.log(`Uploading ${req.files.length} files to Google Drive (task folder)...`);
-             const uploadPromises = req.files.map(file => driveService.uploadFile(file.buffer, file.originalname, file.mimetype, taskFolderId));
+             console.log(`Uploading ${req.files.length} files to Google Drive...`);
+             const uploadPromises = req.files.map(file => uploadToGoogleDrive(file, 'tasks'));
              uploadedFiles = await Promise.all(uploadPromises);
          }
 
@@ -222,8 +216,7 @@ router.post('/create', multiple('files', 5), async (req, res) => {
              endDate: new Date(endDate),
              files: uploadedFiles,
              partnerOrganizations: partnerOrgId,
-             industriesInvolved: industryId,
-             driveFolderId: taskFolderId
+             industriesInvolved: industryId
          });
 
          const savedTask = await newTask.save();
@@ -493,23 +486,10 @@ router.delete('/delete/:id', async (req, res) => {
     }
     
     try {
-        const task = await Task.findById(req.params.id);
+        const task = await Task.findByIdAndDelete(req.params.id);
         if (!task) {
             return res.status(404).json({ success: false, message: 'Task not found' });
         }
-
-        // Delete the folder from Google Drive
-        if (task.driveFolderId) {
-            const driveService = require('../middleware/upload').driveService;
-            try {
-                await driveService.drive.files.delete({ fileId: task.driveFolderId });
-                console.log(`Deleted Google Drive folder for task: ${task.title}`);
-            } catch (err) {
-                console.error('Error deleting Google Drive folder:', err.message);
-            }
-        }
-
-        await Task.findByIdAndDelete(req.params.id);
 
         if (req.audit) {
           await req.audit({
@@ -549,12 +529,11 @@ router.post('/:id/remarks', multiple('files', 3), async (req, res) => {
             });
         }
 
-        // Handle file uploads for the remark (store in task folder)
+        // Handle file uploads for the remark
         let remarkFiles = [];
         if (req.files && req.files.length > 0) {
-            console.log(`Uploading ${req.files.length} remark files to Google Drive (task folder)...`);
-            const driveService = require('../middleware/upload').driveService;
-            const uploadPromises = req.files.map(file => driveService.uploadFile(file.buffer, file.originalname, file.mimetype, task.driveFolderId));
+            console.log(`Uploading ${req.files.length} remark files to Google Drive...`);
+            const uploadPromises = req.files.map(file => uploadToGoogleDrive(file, 'remarks'));
             remarkFiles = await Promise.all(uploadPromises);
         }
 
