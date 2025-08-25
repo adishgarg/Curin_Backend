@@ -18,42 +18,38 @@ const isValidObjectId = (id) => {
 router.get('/getAll', async (req, res) => {
      try{
          const tasks = await Task.find()
-             .populate('createdBy', 'name email role')
-             .populate('assignedTo', 'name email role') 
-             .populate('partnerOrganizations', 'name description industry')
-             .populate('industriesInvolved', 'name description');
+              .populate('createdBy', 'firstName lastName email role')
+            .populate('assignedTo', 'firstName lastName email role')
+            .populate('partnerOrganizations', 'name description industry')
+            .populate('industriesInvolved', 'IndustryName description');
+
          
-         // Transform data to match frontend expectations
          const transformedTasks = tasks.map(task => ({
              id: task._id,
              taskName: task.title,
              description: task.description,
              createdBy: {
                  id: task.createdBy._id,
-                 name: task.createdBy.name,
+                 name: task.createdBy.fullName,
                  email: task.createdBy.email,
-                 role: task.createdBy.role
+                 designation: task.createdBy.designation
              },
              employeesAssigned: task.assignedTo.map(emp => ({
                  id: emp._id,
-                 name: emp.name,
+                 name: emp.fullName,
                  email: emp.email,
-                 role: emp.role
+                 designation: emp.designation
              })),
              status: task.status.toLowerCase().replace(' ', '-'), // 'In Progress' -> 'in-progress'
              startDate: task.startDate,
              endDate: task.endDate,
-             files: task.files,
              partnerOrganizations: [{
                  id: task.partnerOrganizations._id,
                  name: task.partnerOrganizations.name,
-                 description: task.partnerOrganizations.description,
-                 industry: task.partnerOrganizations.industry
              }],
              industriesInvolved: [{
                  id: task.industriesInvolved._id,
-                 name: task.industriesInvolved.name,
-                 description: task.industriesInvolved.description
+                 name: task.industriesInvolved.IndustryName,
              }],
              createdAt: task.createdAt,
              updatedAt: task.updatedAt
@@ -263,10 +259,11 @@ router.get('/get/:id', async (req, res) => {
     
     try {
         const task = await Task.findById(req.params.id)
-            .populate('createdBy', 'name email role')
-            .populate('assignedTo', 'name email role')
+             .populate('createdBy', 'firstName lastName email role')
+            .populate('assignedTo', 'firstName lastName email role')
             .populate('partnerOrganizations', 'name description industry')
-            .populate('industriesInvolved', 'name description');
+            .populate('industriesInvolved', 'IndustryName description');
+
             
         if (!task) {
             return res.status(404).json({ success: false, message: 'Task not found' });
@@ -279,15 +276,15 @@ router.get('/get/:id', async (req, res) => {
             description: task.description,
             createdBy: {
                 id: task.createdBy._id,
-                name: task.createdBy.name,
+                name: task.createdBy.fullName,
                 email: task.createdBy.email,
-                role: task.createdBy.role
+                designation: task.createdBy.designation
             },
             employeesAssigned: task.assignedTo.map(emp => ({
                 id: emp._id,
-                name: emp.name,
+                name: emp.fullName,
                 email: emp.email,
-                role: emp.role
+                designation: emp.designation
             })),
             status: task.status.toLowerCase().replace(' ', '-'),
             startDate: task.startDate,
@@ -296,13 +293,10 @@ router.get('/get/:id', async (req, res) => {
             partnerOrganizations: [{
                 id: task.partnerOrganizations._id,
                 name: task.partnerOrganizations.name,
-                description: task.partnerOrganizations.description,
-                industry: task.partnerOrganizations.industry
             }],
             industriesInvolved: [{
                 id: task.industriesInvolved._id,
-                name: task.industriesInvolved.name,
-                description: task.industriesInvolved.description
+                name: task.industriesInvolved.IndustryName,
             }],
             remarks: task.remarks,
             createdAt: task.createdAt,
@@ -584,10 +578,10 @@ router.get('/assignedToMe', async (req, res) => {
 
     try {
         const tasks = await Task.find({ assignedTo: userId })
-            .populate('createdBy', 'name email role')
-            .populate('assignedTo', 'name email role')
+            .populate('createdBy', 'firstName lastName email role')
+            .populate('assignedTo', 'firstName lastName email role')
             .populate('partnerOrganizations', 'name description industry')
-            .populate('industriesInvolved', 'name description');
+            .populate('industriesInvolved', 'IndustryName description');
 
         const transformedTasks = tasks.map(task => ({
             id: task._id,
@@ -595,15 +589,15 @@ router.get('/assignedToMe', async (req, res) => {
             description: task.description,
             createdBy: {
                 id: task.createdBy._id,
-                name: task.createdBy.name,
+                name: task.createdBy.fullName,
                 email: task.createdBy.email,
-                role: task.createdBy.role
+                designation: task.createdBy.designation
             },
             employeesAssigned: task.assignedTo.map(emp => ({
                 id: emp._id,
-                name: emp.name,
+                name: emp.fullName,
                 email: emp.email,
-                role: emp.role
+                designation: emp.designation
             })),
             status: task.status.toLowerCase().replace(' ', '-'),
             startDate: task.startDate,
@@ -612,12 +606,10 @@ router.get('/assignedToMe', async (req, res) => {
             partnerOrganizations: [{
                 id: task.partnerOrganizations._id,
                 name: task.partnerOrganizations.name,
-                description: task.partnerOrganizations.description,
-                industry: task.partnerOrganizations.industry
             }],
             industriesInvolved: [{
                 id: task.industriesInvolved._id,
-                name: task.industriesInvolved.name,
+                name: task.industriesInvolved.IndustryName,
                 description: task.industriesInvolved.description
             }],
             createdAt: task.createdAt,
