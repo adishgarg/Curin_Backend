@@ -328,7 +328,7 @@ router.delete('/delete/:id', auth(["LPI","PPI"]), async (req, res) => {
             });
         }
 
-        await event.remove();
+    await Event.deleteOne({ _id: id });
 
         // Log audit trail
         req.audit('delete', 'Event', event._id, `Event "${event.name}" deleted`);
