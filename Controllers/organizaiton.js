@@ -10,11 +10,6 @@ router.use(audit());
 router.get('/getAll', auth(), async(req, res) => {
     try{
         const Orgs = await Organization.find().populate('name')
-        if(req.audit) await req.audit({
-            action: 'read',
-            resourceType: 'Organization',
-            remarks: 'Fetched all organizations',
-        });
         res.status(200).json({
             success: true,
             data: Orgs
@@ -50,6 +45,78 @@ router.post('/create', auth(), async (req, res) => {
         });
     } catch (error) {
         console.error('Error creating organization:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server Error'
+        });
+    }
+});
+
+router.put('/update/:id', auth(), async (req, res) => {
+    const orgId = req.params.id;
+    const { name } = req.body;
+
+    try {
+        const org = await Organization.findById(orgId); 
+        if (!org) {
+            return res.status(404).json({
+                success: false,
+                message: 'Organization not found'
+            });
+        }
+        
+        const changes = [];
+        if (name && name !== org.name) {
+            changes.push({ field: 'name', oldValue: org.name, newValue: name });
+            org.name = name;
+        }
+
+        if (changes.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'No changes detected'
+            });
+        }
+
+        org.auditLogs.push({
+            changedBy: req.user._id,
+            changes,
+            remarks: 'Organization updated'
+        });
+
+        const updatedOrg = await org.save();
+        res.status(200).json({
+            success: true,
+            data: updatedOrg
+        });
+    } catch (error) {
+        console.error('Error updating organization:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server Error'
+        });
+    }
+});
+
+router.delete('/delete/:id', auth(["LPI","PPI"]), async (req, res) => {
+    const orgId = req.params.id;
+
+    try {
+        const org = await Organization.findById(org);
+        if (!org) {
+            return res.status(404).json({
+                success: false,
+                message: 'Organization not found'
+            });
+        }
+
+        await Organization.findByIdAndDelete(orgId);
+        res.status(200).json({
+            success: true,
+            message: 'Organization deleted successfully'
+        });
+    } catch (error) {
+        console.error('Error deleting organization:', error);
         res.status(500).json({
             success: false,
             message: 'Server Error'

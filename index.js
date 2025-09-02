@@ -82,7 +82,11 @@ if (process.env.NODE_ENV === 'development') {
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
-
+app.set('trust proxy', 1)
+app.use((req, res, next) => {
+  res.setHeader('ngrok-skip-browser-warning', 'true');
+  next();
+});
 
 // Import routes
 const employeeRoutes = require('./Controllers/employee.js');
@@ -92,7 +96,7 @@ const taskRoutes = require('./Controllers/Task.js');
 const industriesRoutes = require('./Controllers/industries.js');
 const fileRoutes = require('./Controllers/files.js');
 const authRoutes = require('./Controllers/auth.js');
-
+const eventRoutes = require('./Controllers/events.js');
 // API Routes
 app.use('/api/employees', employeeRoutes);
 app.use('/api/auth', loginRoutes);
@@ -101,7 +105,7 @@ app.use('/api/tasks', taskRoutes);
 app.use('/api/industries', industriesRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/auth', authRoutes);
-
+app.use('/api/events', eventRoutes);
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {

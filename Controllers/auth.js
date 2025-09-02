@@ -6,7 +6,7 @@ const { google } = require('googleapis');
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
-  process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/auth/google/callback'
+  'http://localhost:3000/auth/google/callback'
 );
 
 // Route to initiate Google OAuth
@@ -44,7 +44,7 @@ router.get('/google', (req, res) => {
   }
 });
 
-// Route to handle OAuth callback
+// Route to handle OAuth callback - DISPLAY THE ACTUAL TOKEN
 router.get('/google/callback', async (req, res) => {
   const { code } = req.query;
   
@@ -56,35 +56,34 @@ router.get('/google/callback', async (req, res) => {
   }
 
   try {
+    console.log('Exchanging code for tokens...');
     const { tokens } = await oauth2Client.getToken(code);
     
-    // SECURITY: Only log that we received tokens, never log the actual values
-    console.log('OAuth tokens received successfully');
-    console.log('Please manually add the refresh token to your .env file');
-    console.log('IMPORTANT: For security, the actual token values are not displayed');
+    // ===== DISPLAY THE ACTUAL REFRESH TOKEN =====
+    console.log('\n' + '='.repeat(80));
+    console.log('🔑 COPY THIS REFRESH TOKEN TO YOUR .env FILE:');
+    console.log('='.repeat(80));
+    console.log(`GOOGLE_REFRESH_TOKEN=${tokens.refresh_token}`);
+    console.log('='.repeat(80));
+    console.log('⬆️ Copy the line above to your .env file and restart the server');
+    console.log('='.repeat(80) + '\n');
     
-    // SECURITY: Store tokens securely (in production, use encrypted database)
-    // For development, you'll need to manually copy the refresh token
-    
+    oauth2Client.setCredentials(tokens);
+
     res.send(`
       <html>
         <body>
           <h2>Authorization Successful!</h2>
           <p>The application has been authorized successfully.</p>
-          <p><strong>Security Notice:</strong> For your security, token values are not displayed.</p>
-          <p>Check your server console for next steps.</p>
+          <p><strong>IMPORTANT:</strong> Check your server console for the refresh token.</p>
+          <p>Copy the GOOGLE_REFRESH_TOKEN line to your .env file and restart your server.</p>
           <script>
-            // Auto-close this window after 3 seconds
-            setTimeout(() => window.close(), 3000);
+            // Auto-close this window after 5 seconds
+            setTimeout(() => window.close(), 5000);
           </script>
         </body>
       </html>
     `);
-    
-    // In production, you would:
-    // 1. Encrypt and store the refresh token in a secure database
-    // 2. Associate it with the user account
-    // 3. Never expose it in logs or responses
     
   } catch (error) {
     console.error('Error exchanging code for tokens:', error.message);
